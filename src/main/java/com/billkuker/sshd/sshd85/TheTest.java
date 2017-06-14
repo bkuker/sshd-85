@@ -10,6 +10,7 @@ import org.apache.sshd.common.util.net.SshdSocketAddress;
 import org.apache.sshd.server.SshServer;
 import org.apache.sshd.server.forward.AcceptAllForwardingFilter;
 import org.apache.sshd.server.keyprovider.SimpleGeneratorHostKeyProvider;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -88,13 +89,16 @@ public class TheTest {
 	public void readFastPF() throws Exception {
 		int sinkPort = FORWARD_PORT_START++;
 		log.debug("{}", session);
-		SshdSocketAddress b = session.startLocalPortForwarding(new SshdSocketAddress("localhost", sinkPort),
+		session.startLocalPortForwarding(new SshdSocketAddress("localhost", sinkPort),
 				new SshdSocketAddress("localhost", TEST_SERVER_PORT));
 		log.debug("Connecting to {}", sinkPort);
-		Socket s = new Socket("localhost", sinkPort);
-		byte b1[] = new byte[PAYLOAD.length()];
-		int read1 = s.getInputStream().read(b1);
-		System.out.println(new String(b1));
+		try (Socket s = new Socket("localhost", sinkPort)) {
+			byte b1[] = new byte[PAYLOAD.length()];
+			int read1 = s.getInputStream().read(b1);
+			log.info("Got {} bytes from the server: {}", read1, new String(b1, 0, read1));
+			Assert.assertEquals(PAYLOAD, new String(b1, 0, read1));
+		}
+
 	}
 
 	/**
@@ -105,37 +109,43 @@ public class TheTest {
 	public void readSlowPF() throws Exception {
 		int sinkPort = FORWARD_PORT_START++;
 		log.debug("{}", session);
-		SshdSocketAddress b = session.startLocalPortForwarding(new SshdSocketAddress("localhost", sinkPort),
+		session.startLocalPortForwarding(new SshdSocketAddress("localhost", sinkPort),
 				new SshdSocketAddress("localhost", TEST_SERVER_PORT));
 		log.debug("Connecting to {}", sinkPort);
-		Socket s = new Socket("localhost", sinkPort);
-		byte b1[] = new byte[PAYLOAD.length() / 2];
-		byte b2[] = new byte[PAYLOAD.length()];
-	
-		int read1 = s.getInputStream().read(b1);
-		System.out.println(new String(b1));
-	
-		Thread.sleep(50);
-	
-		//THE FOLLOWING READ FAILS
-		int read2 = s.getInputStream().read(b2);
-		System.out.println(new String(b2));
+		try (Socket s = new Socket("localhost", sinkPort)) {
+			byte b1[] = new byte[PAYLOAD.length() / 2];
+			byte b2[] = new byte[PAYLOAD.length()];
+
+			int read1 = s.getInputStream().read(b1);
+			log.info("Got {} bytes from the server: {}", read1, new String(b1, 0, read1));
+
+			Thread.sleep(50);
+
+			// THE FOLLOWING READ FAILS
+			int read2 = s.getInputStream().read(b2);
+			log.info("Got {} bytes from the server: {}", read2, new String(b2, 0, read2));
+
+			Assert.assertEquals(PAYLOAD, new String(b1, 0, read1) + new String(b2, 0, read2));
+		}
 	}
 
 	/**
-	 * Connect to test server directly and read with 2 buffers and a
-	 * pause in between
+	 * Connect to test server directly and read with 2 buffers and a pause in
+	 * between
 	 */
 	@Test
 	public void readSlowDirect() throws Exception {
 		log.debug("Connecting to {}", TEST_SERVER_PORT);
-		Socket s = new Socket("localhost", TEST_SERVER_PORT);
-		byte b1[] = new byte[PAYLOAD.length() / 2];
-		byte b2[] = new byte[PAYLOAD.length()];
-		int read1 = s.getInputStream().read(b1);
-		System.out.println(new String(b1));
-		Thread.sleep(50);
-		int read2 = s.getInputStream().read(b2);
-		System.out.println(new String(b2));
+		try (Socket s = new Socket("localhost", TEST_SERVER_PORT)) {
+			byte b1[] = new byte[PAYLOAD.length() / 2];
+			byte b2[] = new byte[PAYLOAD.length()];
+			int read1 = s.getInputStream().read(b1);
+			log.info("Got {} bytes from the server: {}", read1, new String(b1, 0, read1));
+			Thread.sleep(50);
+			int read2 = s.getInputStream().read(b2);
+			log.info("Got {} bytes from the server: {}", read2, new String(b2, 0, read1));
+
+			Assert.assertEquals(PAYLOAD, new String(b1, 0, read1) + new String(b2, 0, read2));
+		}
 	}
 }
